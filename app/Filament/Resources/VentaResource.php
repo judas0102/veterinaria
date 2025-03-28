@@ -21,13 +21,12 @@ use Filament\Forms\Get;
 use Filament\Forms\Set;
 use Filament\Tables\Actions\BulkActionGroup;
 use Filament\Tables\Actions\DeleteBulkAction;
-use App\Filament\Actions\CajeroAction;
+use App\Filament\Resources\VentaResource\Pages\ReporteVentas;
 
 class VentaResource extends Resource
 {
     protected static ?string $model = Venta::class;
-
-    protected static ?string $navigationIcon = 'heroicon-o-rectangle-stack';
+    protected static ?string $navigationIcon = 'heroicon-o-currency-dollar';
 
     public static function form(Form $form): Form
     {
@@ -38,21 +37,8 @@ class VentaResource extends Resource
                     ->schema([
                         Select::make('producto_id')
                             ->label('Producto')
-                            ->options(function (Get $get) {
-                                $productosSeleccionados = collect($get('../../productos'))->pluck('producto_id')->filter();
-
-                                // Asegurar que el producto actual también esté en las opciones para que se muestre correctamente
-                                $productoActual = $get('producto_id');
-
-                                $productos = Producto::query();
-
-                                if ($productoActual) {
-                                    $productosSeleccionados = $productosSeleccionados->filter(fn ($id) => $id != $productoActual);
-                                }
-
-                                return $productos
-                                    ->when($productosSeleccionados->isNotEmpty(), fn ($q) => $q->whereNotIn('id', $productosSeleccionados))
-                                    ->pluck('nombre', 'id');
+                            ->options(function () {
+                                return Producto::all()->pluck('nombre', 'id');
                             })
                             ->searchable()
                             ->reactive()
@@ -60,29 +46,21 @@ class VentaResource extends Resource
                             ->afterStateUpdated(function ($state, callable $set, callable $get) {
                                 $producto = Producto::find($state);
                                 $set('precio', $producto?->precio ?? 0);
-
                                 $cantidad = $get('cantidad') ?? 1;
                                 $set('subtotal', $cantidad * ($producto?->precio ?? 0));
 
                                 $productos = collect($get('../../productos'));
                                 $productosArray = $productos->toArray();
-                                $index = $get('__index');
 
-                                foreach ($productosArray as $i => $item) {
-                                    if ($i !== $index && $item['producto_id'] == $state) {
-                                        $nuevaCantidad = ($item['cantidad'] ?? 1) + $cantidad;
-                                        $productosArray[$i]['cantidad'] = $nuevaCantidad;
-                                        $productosArray[$i]['subtotal'] = $nuevaCantidad * ($producto?->precio ?? 0);
-
-                                        unset($productosArray[$index]);
-                                        $productosArray = array_values($productosArray);
-
-                                        $set('../../productos', $productosArray);
-                                        return;
-                                    }
+                                if (collect($productosArray)->where('producto_id', $state)->count() > 1) {
+                                    $set('producto_id', null);
+                                    \Filament\Notifications\Notification::make()
+                                        ->title('Error')
+                                        ->body('Este producto ya fue seleccionado.')
+                                        ->danger()
+                                        ->send();
                                 }
                             }),
-
                         TextInput::make('cantidad')
                             ->numeric()
                             ->default(1)
@@ -96,37 +74,19 @@ class VentaResource extends Resource
                                 }
                                 $set('subtotal', ($get('precio') ?? 0) * $get('cantidad'));
                             }),
-
                         Hidden::make('precio'),
-
                         TextInput::make('subtotal')
                             ->numeric()
                             ->disabled()
-                            ->dehydrated(),
+                            ->dehydrated()
+                            ->reactive(),
                     ])
                     ->columns(3)
-                    ->mutateDehydratedStateUsing(function ($state) {
-                        $agrupados = [];
-
-                        foreach ($state as $item) {
-                            $item = is_array($item) ? $item : $item->toArray();
-                            $productoId = $item['producto_id'];
-
-                            if (isset($agrupados[$productoId])) {
-                                $agrupados[$productoId]['cantidad'] += $item['cantidad'];
-                                $agrupados[$productoId]['subtotal'] += $item['subtotal'];
-                            } else {
-                                $agrupados[$productoId] = $item;
-                            }
-                        }
-
-                        return array_values($agrupados);
-                    })
-                    ->afterStateUpdated(function ($state, callable $set) {
-                        $total = collect($state)->sum('subtotal');
+                    ->afterStateUpdated(function ($state, callable $set, Get $get) {
+                        $productos = collect($get('productos'));
+                        $total = $productos->sum('subtotal');
                         $set('total', $total);
                     }),
-
                 TextInput::make('total')
                     ->label('Total')
                     ->numeric()
@@ -171,14 +131,6 @@ class VentaResource extends Resource
             ]);
     }
 
-    public static function getActions(): array
-    {
-        return [
-            // Si no personalizaste el nombre, Filament asignará uno por defecto
-            CajeroAction::make(),
-        ];
-    }
-
     public static function getRelations(): array
     {
         return [];
@@ -187,9 +139,10 @@ class VentaResource extends Resource
     public static function getPages(): array
     {
         return [
-            'index'  => Pages\ListVentas::route('/'),
+            'index' => Pages\ListVentas::route('/'),
             'create' => Pages\CreateVenta::route('/create'),
-            'edit'   => Pages\EditVenta::route('/{record}/edit'),
+            'edit' => Pages\EditVenta::route('/{record}/edit'),
+            'reporte' => ReporteVentas::route('/reporte'),
         ];
     }
 }

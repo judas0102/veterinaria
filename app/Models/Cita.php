@@ -9,15 +9,21 @@ class Cita extends Model
 {
     use HasFactory;
 
-    protected $table = 'consultas';
+    protected $table = 'citas';
 
     protected $fillable = [
-        'cita_id',
-        'diagnostico',
-        'tratamiento',
+        'nombre_mascota',
+        'cliente',
+        'motivo',
+        'fecha_hora',
+        'estado',
         'observaciones',
     ];
 
+    public function mascota()
+{
+    return $this->belongsTo(\App\Models\Mascota::class, 'mascota_id');
+}
 
     // Si quieres la relación con usuarios (dueños):
     /*

@@ -2,23 +2,19 @@
 
 namespace App\Filament\Resources;
 
-use Filament\Forms\Components\Select;
 use App\Filament\Resources\ConsultaResource\Pages;
-use App\Filament\Resources\ConsultaResource\RelationManagers;
 use App\Models\Consulta;
+use App\Models\Cita;
 use Filament\Forms;
-use App\Models\Producto;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
-use Filament\Tables\Columns\TextColumn;
-use Filament\Tables\Filters\Filter;
-use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Textarea;
-
+use Filament\Forms\Components\Select;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Actions\EditAction;
 use Filament\Tables\Actions\BulkActionGroup;
 use Filament\Tables\Actions\DeleteBulkAction;
 
@@ -26,23 +22,34 @@ class ConsultaResource extends Resource
 {
     protected static ?string $model = Consulta::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-rectangle-stack';
+    protected static ?string $navigationIcon = 'heroicon-o-clipboard-document-check';
 
     public static function form(Form $form): Form
     {
-        return $form
-        ->schema([
-            // Relación con la cita
-            TextInput::make('nombre_mascota')
-            ->label('Nombre de la Mascota')
-            ->required(),
+        return $form->schema([
+            Select::make('cita_id')
+            ->label('Seleccionar Cita Pendiente')
+            ->relationship(
+                name: 'cita',
+                titleAttribute: 'nombre_mascota',
+                modifyQueryUsing: fn ($query) => $query->where('estado', 'pendiente')
+            )
+            ->searchable()
+            ->required()
+            ->preload()
+            ->dehydrated() // 👈 ESTA LÍNEA ES LA CLAVE
+            ->getOptionLabelFromRecordUsing(
+                fn ($record) => "{$record->nombre_mascota} - {$record->motivo} ({$record->fecha_hora})"
+            ),
 
             Textarea::make('diagnostico')
                 ->label('Diagnóstico')
+                ->required()
                 ->rows(3),
 
             Textarea::make('tratamiento')
                 ->label('Tratamiento')
+                ->required()
                 ->rows(3),
 
             Textarea::make('observaciones')
@@ -54,49 +61,27 @@ class ConsultaResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
-        ->columns([
-            TextColumn::make('id')->label('ID')->sortable(),
-
-            // Mostrar la mascota (desde la relación)
-            TextColumn::make('nombre_mascota')
-            ->label('Mascota'),
-
-            // Diagnóstico
-            TextColumn::make('diagnostico')
-                ->label('Diagnóstico')
-                ->limit(20) // Muestra solo 20 caracteres en la tabla
-                ->sortable(),
-
-            // Tratamiento
-            TextColumn::make('tratamiento')
-                ->label('Tratamiento')
-                ->limit(20)
-                ->sortable(),
-
-            // Fecha de creación
-            TextColumn::make('created_at')
-                ->label('Creada')
-                ->dateTime()
-                ->sortable(),
-        ])
-        ->filters([
-            // Agrega filtros si deseas
-        ])
+            ->columns([
+                TextColumn::make('id')->label('ID')->sortable(),
+                TextColumn::make('cita.mascota.nombre')->label('Mascota'),
+                TextColumn::make('cita.motivo')->label('Motivo'),
+                TextColumn::make('diagnostico')->label('Diagnóstico')->limit(20),
+                TextColumn::make('tratamiento')->label('Tratamiento')->limit(20),
+                TextColumn::make('created_at')->label('Fecha')->dateTime()->sortable(),
+            ])
             ->actions([
-                Tables\Actions\EditAction::make(),
+                EditAction::make(),
             ])
             ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
+                BulkActionGroup::make([
+                    DeleteBulkAction::make(),
                 ]),
             ]);
     }
 
     public static function getRelations(): array
     {
-        return [
-            //
-        ];
+        return [];
     }
 
     public static function getPages(): array

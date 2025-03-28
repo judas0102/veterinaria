@@ -17,7 +17,9 @@ return new class extends Migration
             // $table->foreignId('user_id')->constrained()->cascadeOnDelete();
 
             // Nombre de la mascota
-            $table->string('nombre_mascota');
+
+            $table->foreignId('mascota_id')->nullable()->constrained();
+
 
             // Fecha y hora de la cita
             $table->dateTime('fecha_hora');

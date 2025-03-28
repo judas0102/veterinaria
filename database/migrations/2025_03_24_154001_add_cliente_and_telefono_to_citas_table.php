@@ -9,7 +9,8 @@ return new class extends Migration
     public function up()
     {
         Schema::table('citas', function (Blueprint $table) {
-            $table->string('cliente')->nullable()->after('nombre_mascota');
+            $table->string('cliente')->nullable(); // sin after
+
             $table->string('telefono')->nullable()->after('cliente');
         });
     }
